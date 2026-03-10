@@ -1,6 +1,30 @@
 # NextStep Price Checker
 
-ระบบเช็คราคาสินค้าด้วยบาร์โค้ด สำหรับให้ลูกค้าสแกนเพื่อเช็คราคา
+## 📱 Introduction
+
+**NextStep Price Checker** เป็นระบบ Web Application สำหรับการเช็คราคาสินค้าแบบเรียลไทม์ โดยใช้การสแกนบาร์โค้ด ระบบนี้ออกแบบมาเพื่อให้ลูกค้าและเจ้าหน้าที่ร้านค้าสามารถค้นหาราคาสินค้าได้อย่างรวดเร็วและสะดวก พร้อมการสนับสนุนระบบราคาแบบขั้นบันไดที่ซับซ้อนสำหรับลูกค้าธุรกิจ
+
+### 🎯 วัตถุประสงค์
+
+- ลดเวลาในการค้นหาราคาสินค้า
+- รองรับราคาที่ต่างกันตามประเภทลูกค้า (Customer-specific pricing)
+- สนับสนุนการค้นหาสินค้าในระดับเองค์กร (Multi-database)
+- ให้บริการแก่ลูกค้าและพนักงานผ่าน Web Interface ที่ใช้งานง่าย
+
+### 🏗️ สถาปัตยกรรม
+
+- **Frontend:** React 19 + TailwindCSS 4 (Responsive Design)
+- **Backend:** Next.js 16 (API Route + Server Actions)
+- **Database:** PostgreSQL
+- **Authentication:** Session-based dengan server validation
+
+### ✨ ไฮไลท์เด่น
+
+- ✅ **Advanced Pricing Engine** - ระบบคำนวณราคาแบบ 7-tier fallback
+- ✅ **Multi-Database Support** - เข้าถึงหลายฐานข้อมูลจากอินเทอร์เฟส เดียว
+- ✅ **Customer Discount Hierarchy** - ส่วนลดแตกต่างกันตามประเภทลูกค้า
+- ✅ **Real-time Barcode Scanning** - อัตราปฏิกิริยาการค้นหาใดต้องการไว้
+- ✅ **Search History** - เก็บประวัติการค้นหาสำหรับอ้างอิง
 
 ## Features
 

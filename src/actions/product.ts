@@ -259,15 +259,8 @@ function isQuantityInRange(quantity: number, fromQty: number | null, toQty: numb
 }
 
 /**
- * คำนวณราคาสินค้าตามลูกค้าโดยคำนึงถึง:
- * 1. ราคากำหนดเอง (customer level)
- * 2. ราคากลุ่มลูกค้า (customer group)
- * 3. ราคาขายทั่วไป (sales price)
- * 4. ราคามาตรฐาน (standard price)
- * 5. ราคาตามสูตร (formula price)
- * 6. ราคาตามบาร์โค้ด (barcode price)
- * 7. ราคาขายล่าสุด/เฉลี่ย (transaction history)
- * และส่วนลด (discount)
+ * คำนวณราคาสินค้า (ใช้ราคาจาก barcode เท่านั้น)
+ * ระบบราคาแบบง่ายไม่มี fallback
  */
 export async function calculateCustomerProductPrice(
   database: string,
@@ -276,185 +269,18 @@ export async function calculateCustomerProductPrice(
   const {
     icCode,
     unitCode,
-    quantity: strQuantity,
-    customerCode,
-    vatType = 'ภาษีรวมใน',
-    saleType = '0'
+    vatType = 'ภาษีรวมใน'
   } = params;
 
   try {
-    const qty = parseInt(strQuantity) || 1;
-    const today = new Date().toISOString().split('T')[0];
-
-    // เลือก price field ตามประเภท VAT
-    const priceField = ['ภาษีแยกนอก', 'Tax Excluded'].includes(vatType) ? 'sale_price1' : 'sale_price2';
-
-    // ====== 0: ราคาตามลูกค้า (Customer Specific Price) ======
-    const customerPrice = await query<InventoryPriceRow>(database, `
-      SELECT roworder, sale_price1, sale_price2, price_mode, price_type
-      FROM ic_inventory_price
-      WHERE UPPER(ic_code) = UPPER($1)
-        AND UPPER(unit_code) = UPPER($2)
-        AND UPPER(cust_code) = UPPER($3)
-        AND price_type = 3
-        AND $4 BETWEEN from_date AND to_date
-        AND $5 BETWEEN from_qty AND to_qty
-        AND sale_type IN (0, ${parseInt(saleType) === 0 || parseInt(saleType) === 2 ? '2' : '1'})
-      ORDER BY price_mode DESC, sale_type DESC
-      LIMIT 1
-    `, [icCode, unitCode, customerCode, today, qty]);
-
-    if (customerPrice.length > 0) {
-      return {
-        success: true,
-        price: parseFloat(customerPrice[0][priceField as keyof InventoryPriceRow]),
-        price1: parseFloat(customerPrice[0].sale_price1),
-        discountPercent: 0,
-        priceType: '0',
-        priceMode: customerPrice[0].price_mode,
-        vatType,
-        debug: { ruleMatched: 'Customer Specific Price' }
-      };
-    }
-
-    // ====== 1: ราคากลุ่มลูกค้า (Customer Group Price) ======
-    const customerGroupPrice = await query<InventoryPriceRow>(database, `
-      SELECT roworder, sale_price1, sale_price2, price_mode, price_type
-      FROM ic_inventory_price
-      WHERE UPPER(ic_code) = UPPER($1)
-        AND UPPER(unit_code) = UPPER($2)
-        AND cust_group_1 = (SELECT group_main FROM ar_customer_detail WHERE UPPER(ar_code) = UPPER($3) LIMIT 1)
-        AND price_type = 2
-        AND $4 BETWEEN from_date AND to_date
-        AND $5 BETWEEN from_qty AND to_qty
-        AND sale_type IN (0, ${parseInt(saleType) === 0 || parseInt(saleType) === 2 ? '2' : '1'})
-      ORDER BY price_mode DESC, sale_type DESC
-      LIMIT 1
-    `, [icCode, unitCode, customerCode, today, qty]);
-
-    if (customerGroupPrice.length > 0) {
-      return {
-        success: true,
-        price: parseFloat(customerGroupPrice[0][priceField as keyof InventoryPriceRow]),
-        price1: parseFloat(customerGroupPrice[0].sale_price1),
-        discountPercent: 0,
-        priceType: '1',
-        priceMode: customerGroupPrice[0].price_mode,
-        vatType,
-        debug: { ruleMatched: 'Customer Group Price' }
-      };
-    }
-
-    // ====== 2: ราคาขายทั่วไป (General Sales Price - price_mode = 1) ======
-    const generalPrice = await query<InventoryPriceRow>(database, `
-      SELECT roworder, sale_price1, sale_price2, price_mode, price_type
-      FROM ic_inventory_price
-      WHERE UPPER(ic_code) = UPPER($1)
-        AND UPPER(unit_code) = UPPER($2)
-        AND price_type = 1
-        AND price_mode = 1
-        AND $3 BETWEEN from_date AND to_date
-        AND $4 BETWEEN from_qty AND to_qty
-        AND sale_type IN (0, ${parseInt(saleType) === 0 || parseInt(saleType) === 2 ? '2' : '1'})
-      ORDER BY sale_type DESC
-      LIMIT 1
-    `, [icCode, unitCode, today, qty]);
-
-    if (generalPrice.length > 0) {
-      return {
-        success: true,
-        price: parseFloat(generalPrice[0][priceField as keyof InventoryPriceRow]),
-        price1: parseFloat(generalPrice[0].sale_price1),
-        discountPercent: 0,
-        priceType: '2',
-        priceMode: generalPrice[0].price_mode,
-        vatType,
-        debug: { ruleMatched: 'General Sales Price' }
-      };
-    }
-
-    // ====== 3: ราคามาตรฐาน (Standard Price - price_mode = 0) ======
-    const standardPrice = await query<InventoryPriceRow>(database, `
-      SELECT roworder, sale_price1, sale_price2, price_mode, price_type
-      FROM ic_inventory_price
-      WHERE UPPER(ic_code) = UPPER($1)
-        AND UPPER(unit_code) = UPPER($2)
-        AND price_type = 1
-        AND price_mode = 0
-        AND $3 BETWEEN from_date AND to_date
-        AND $4 BETWEEN from_qty AND to_qty
-        AND sale_type IN (0, ${parseInt(saleType) === 0 || parseInt(saleType) === 2 ? '2' : '1'})
-      ORDER BY sale_type DESC
-      LIMIT 1
-    `, [icCode, unitCode, today, qty]);
-
-    if (standardPrice.length > 0) {
-      return {
-        success: true,
-        price: parseFloat(standardPrice[0][priceField as keyof InventoryPriceRow]),
-        price1: parseFloat(standardPrice[0].sale_price1),
-        discountPercent: 0,
-        priceType: '3',
-        priceMode: standardPrice[0].price_mode,
-        vatType,
-        debug: { ruleMatched: 'Standard Price' }
-      };
-    }
-
-    // ====== 4 & 5: ราคาตามสูตร (Formula Price) ======
-    // ดึงระดับราคาของลูกค้า
-    const customerDetail = await query<CustomerDetailRow>(database, `
-      SELECT group_main, group_sub_1, group_sub_2, group_sub_3, group_sub_4, 
-             COALESCE(price_level, 0) as price_level
-      FROM ar_customer_detail
-      WHERE UPPER(ar_code) = UPPER($1)
-      LIMIT 1
-    `, [customerCode]);
-
-    const priceLevel = customerDetail.length > 0 ? customerDetail[0].price_level : 0;
-
-    const resultVatType = ['Tax Excluded', 'ภาษีแยกนอก'].includes(vatType) 
-      ? '1' 
-      : ['Tax Included', 'ภาษีรวมใน'].includes(vatType) 
-        ? '2' 
-        : '3';
-
-    const formulaPrices = await query<PriceFormulaRow>(database, `
-      SELECT * FROM ic_inventory_price_formula
-      WHERE UPPER(ic_code) = UPPER($1)
-        AND UPPER(unit_code) = UPPER($2)
-        AND sale_type IN (${parseInt(saleType) === 0 ? '0, 2' : '1'})
-        AND COALESCE(tax_type, 0) IN (0, ${resultVatType})
-      ORDER BY sale_type DESC
-      LIMIT 1
-    `, [icCode, unitCode]);
-
-    if (formulaPrices.length > 0) {
-      const basePrice = formulaPrices[0]['price_0'] || '0';
-      const formulaKey = `price_${priceLevel}`;
-      const formula = formulaPrices[0][formulaKey] || basePrice;
-
-      const calculatedPrice = calculateFormulaPrice(qty, parseFloat(basePrice), formula as string);
-      return {
-        success: true,
-        price: calculatedPrice,
-        price1: calculatedPrice,
-        discountPercent: 0,
-        priceType: '5',
-        priceMode: '6',
-        vatType,
-        debug: { ruleMatched: 'Formula Price', query: `price_level: ${priceLevel}` }
-      };
-    }
-
-    // ====== 6: ราคาตามบาร์โค้ด (Barcode Price) ======
+    // ดึงราคาจาก barcode ตามหน่วย
     const barcodePrice = await query<BarcodeRow>(database, `
       SELECT price, price_2, price_3, price_4
       FROM ic_inventory_barcode
       WHERE UPPER(ic_code) = UPPER($1)
-      ORDER BY barcode
+        AND UPPER(unit_code) = UPPER($2)
       LIMIT 1
-    `, [icCode]);
+    `, [icCode, unitCode]);
 
     if (barcodePrice.length > 0) {
       const price = ['ภาษีแยกนอก', 'Tax Excluded'].includes(vatType) 
@@ -473,43 +299,6 @@ export async function calculateCustomerProductPrice(
       };
     }
 
-    // ====== 7: ราคาจากประวัติการขาย (Transaction History) ======
-    const erpOption = await query<ErpOptionRow>(database, `
-      SELECT get_last_price_type, ic_price_formula_control FROM erp_option LIMIT 1
-    `, []);
-
-    if (erpOption.length > 0 && erpOption[0].get_last_price_type > 0) {
-      const transPrice = await query<TransHistoryRow>(database, `
-        SELECT price_exclude_vat, price, vat_type
-        FROM ic_trans_detail
-        WHERE UPPER(cust_code) = UPPER($1)
-          AND UPPER(item_code) = UPPER($2)
-          AND UPPER(unit_code) = UPPER($3)
-          AND last_status = 0
-          AND trans_flag = 44
-          AND price_exclude_vat > 0
-        ORDER BY doc_date DESC, doc_time DESC
-        LIMIT 1
-      `, [customerCode, icCode, unitCode]);
-
-      if (transPrice.length > 0) {
-        let basePrice = parseFloat(transPrice[0].price_exclude_vat);
-        if (['ภาษีรวมใน', 'Tax Included'].includes(vatType)) {
-          basePrice = basePrice * 1.07; // สมมติ VAT 7%
-        }
-        return {
-          success: true,
-          price: basePrice,
-          price1: basePrice,
-          discountPercent: 0,
-          priceType: '7',
-          priceMode: '5',
-          vatType,
-          debug: { ruleMatched: 'Last Transaction Price' }
-        };
-      }
-    }
-
     // ไม่พบราคา
     return {
       success: false,
@@ -519,10 +308,10 @@ export async function calculateCustomerProductPrice(
       priceType: '-1',
       priceMode: '0',
       vatType,
-      error: 'ไม่พบราคาสินค้าสำหรับลูกค้านี้'
+      error: 'ไม่พบราคาสินค้า'
     };
   } catch (error) {
-    console.error('Calculate customer product price error:', error);
+    console.error('Calculate product price error:', error);
     return {
       success: false,
       price: 0,

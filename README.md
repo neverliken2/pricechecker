@@ -20,11 +20,11 @@
 
 ### ✨ ไฮไลท์เด่น
 
-- ✅ **Advanced Pricing Engine** - ระบบคำนวณราคาแบบ 7-tier fallback
-- ✅ **Multi-Database Support** - เข้าถึงหลายฐานข้อมูลจากอินเทอร์เฟส เดียว
-- ✅ **Customer Discount Hierarchy** - ส่วนลดแตกต่างกันตามประเภทลูกค้า
-- ✅ **Real-time Barcode Scanning** - อัตราปฏิกิริยาการค้นหาใดต้องการไว้
+- ✅ **Simple Barcode Pricing** - ดึงราคาจาก barcode ตัวเดียว (ง่าย และรวดเร็ว)
+- ✅ **Multi-Database Support** - เข้าถึงหลายฐานข้อมูลจากอินเทอร์เฟสเดียว
+- ✅ **Real-time Barcode Scanning** - อัตราปฏิกิริยาการค้นหาไว
 - ✅ **Search History** - เก็บประวัติการค้นหาสำหรับอ้างอิง
+- ✅ **VAT Type Support** - รองรับภาษีรวม/แยก
 
 ## Features
 

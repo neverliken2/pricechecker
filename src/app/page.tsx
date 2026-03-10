@@ -42,6 +42,7 @@ export default function HomePage() {
   const [searchHistory, setSearchHistory] = useState<ProductInfo[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [copiedBarcode, setCopiedBarcode] = useState<string | null>(null);
+  const [selectedBarcodeUnit, setSelectedBarcodeUnit] = useState<string>(''); // เก็บหน่วยที่เลือก
   
   // Customer Pricing States - เก็บราคาตามหน่วยที่ต่างกัน
   const [allPrices, setAllPrices] = useState<AllPricesResult | null>(null);
@@ -167,11 +168,22 @@ export default function HomePage() {
   // Load pricing when product changes
   useEffect(() => {
     if (product && user?.selected_database) {
+      // รีเซต selected unit ให้เป็นหน่วยแรก
+      setSelectedBarcodeUnit(product.barcodes?.[0]?.unit_code || '');
       loadCustomerPricing(product);
     } else {
       setAllPrices(null);
+      setSelectedBarcodeUnit('');
     }
   }, [product, user?.selected_database, loadCustomerPricing]);
+
+  // Load pricing again when selected barcode unit changes
+  useEffect(() => {
+    if (product && selectedBarcodeUnit && user?.selected_database) {
+      console.log('🔄 Reloading pricing for unit:', selectedBarcodeUnit);
+      loadCustomerPricing(product);
+    }
+  }, [selectedBarcodeUnit]);
 
   // Handle barcode scan/search with value parameter
   const handleSearchWithValue = async (searchValue: string) => {
@@ -246,6 +258,7 @@ export default function HomePage() {
     setSearchResults([]);
     setError('');
     setBarcode('');
+    setSelectedBarcodeUnit(''); // รีเซต selected unit
     inputRef.current?.focus();
   };
 
@@ -432,8 +445,31 @@ export default function HomePage() {
               <div className="flex-1 px-6 py-8 bg-gradient-to-br from-purple-50 to-white">
                 <p className="text-gray-500 text-sm mb-4 text-center">ราคา</p>
                 
-                {/* All Prices by Unit */}
-                {allPrices?.success && allPrices.prices.length > 0 ? (
+                {/* Display Price for Selected Unit */}
+                {selectedBarcodeUnit && allPrices?.success && allPrices.prices.length > 0 ? (
+                  (() => {
+                    const selectedPrice = allPrices.prices.find(p => p.unitCode === selectedBarcodeUnit);
+                    if (selectedPrice) {
+                      const discountedPrice = selectedPrice.pricing.price - (selectedPrice.pricing.price * selectedPrice.discount / 100);
+                      return (
+                        <div className="space-y-3">
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-gray-600 mb-2">หน่วย: <span className="font-bold text-purple-600">{selectedPrice.unitCode}</span></p>
+                            {selectedPrice.discount > 0 && (
+                              <p className="text-sm text-red-600 mb-2">
+                                ลด {selectedPrice.discount}% <span className="line-through text-gray-400">{formatCurrency(selectedPrice.pricing.price)}</span>
+                              </p>
+                            )}
+                            <p className="text-4xl font-bold text-purple-600">{formatCurrency(discountedPrice)}</p>
+                            <p className="text-xs text-gray-500 mt-2">Barcode: {selectedPrice.barcode}</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()
+                ) : allPrices?.success && allPrices.prices.length > 0 ? (
+                  // Show all prices if no unit selected
                   <div className="space-y-4">
                     {allPrices.prices.map((priceByUnit, idx) => (
                       <div key={idx} className="border rounded-lg p-3 bg-white">
@@ -473,33 +509,38 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Barcodes */}
+            {/* Barcodes - Unit Selection */}
             {product.barcodes && product.barcodes.length > 0 && (
               <div className="px-6 py-4 border-t bg-gray-50">
                 <div className="flex items-center gap-2 mb-3">
                   <ScanBarcode className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-500">บาร์โค้ด ({product.barcodes.length})</span>
+                  <span className="text-sm text-gray-500 font-semibold">บาร์โค้ด / หน่วยนับ ({product.barcodes.length})</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {product.barcodes.map((bcInfo) => (
-                    <button
-                      key={bcInfo.barcode}
-                      onClick={() => {
-                        navigator.clipboard.writeText(bcInfo.barcode);
-                        setCopiedBarcode(bcInfo.barcode);
-                        setTimeout(() => setCopiedBarcode(null), 2000);
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border rounded-lg text-sm font-mono hover:bg-purple-50 hover:border-purple-300 transition-colors"
-                    >
-                      <span>{bcInfo.barcode}</span>
-                      {bcInfo.unit_code && <span className="text-gray-400 text-xs">({bcInfo.unit_code})</span>}
-                      {copiedBarcode === bcInfo.barcode ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
-                      )}
-                    </button>
-                  ))}
+                  {product.barcodes.map((bcInfo) => {
+                    const isSelected = selectedBarcodeUnit === bcInfo.unit_code;
+                    const priceInfo = allPrices?.prices?.find(p => p.unitCode === bcInfo.unit_code);
+                    const unitPrice = priceInfo?.pricing?.price || bcInfo.price;
+                    
+                    return (
+                      <button
+                        key={bcInfo.barcode}
+                        onClick={() => {
+                          setSelectedBarcodeUnit(bcInfo.unit_code);
+                          // ทำให้ scroll to price section ถ้าต้องการ
+                        }}
+                        className={`inline-flex flex-col items-start gap-1 px-3 py-2 rounded-lg text-sm font-mono transition-all ${
+                          isSelected
+                            ? 'bg-purple-600 text-white border-2 border-purple-700 shadow-md'
+                            : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-purple-300 hover:bg-purple-50'
+                        }`}
+                        title={`Barcode: ${bcInfo.barcode}\nUnit: ${bcInfo.unit_code}\nPrice: ${unitPrice || 'N/A'}`}
+                      >
+                        <span className="font-semibold">{bcInfo.unit_code}</span>
+                        <span className="text-xs opacity-75">{bcInfo.barcode}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

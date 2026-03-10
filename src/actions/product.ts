@@ -94,7 +94,6 @@ export interface PriceByUnit {
   unitName: string;
   barcode: string;
   pricing: PriceCalculationResult;
-  discount: number;
 }
 
 export interface AllPricesResult {
@@ -453,27 +452,11 @@ export async function calculateAllPricesByUnits(
         debug: { ruleMatched: 'Direct Barcode Price' }
       };
 
-      // ลองดึง discount แต่ไม่ error ถ้าไม่เจอ
-      let discount = 0;
-      try {
-        discount = await getCustomerDiscount(
-          database,
-          icCode,
-          barcode.unit_code,
-          customerCode,
-          1
-        );
-      } catch (e) {
-        console.warn('Error getting discount:', e);
-        discount = 0;
-      }
-
       priceResults.push({
         unitCode: barcode.unit_code,
         unitName: barcode.unit_code,
         barcode: barcode.barcode,
-        pricing,
-        discount
+        pricing
       });
     }
 

@@ -6,11 +6,8 @@ import { useRouter } from 'next/navigation';
 import { 
   searchProductByBarcode, 
   searchProducts, 
-  calculateCustomerProductPrice,
-  getCustomerDiscount,
   calculateAllPricesByUnits,
   ProductInfo,
-  PriceCalculationResult,
   AllPricesResult 
 } from '@/actions/product';
 import { formatCurrency } from '@/lib/utils';
@@ -445,22 +442,16 @@ export default function HomePage() {
               <div className="flex-1 px-6 py-8 bg-gradient-to-br from-purple-50 to-white">
                 <p className="text-gray-500 text-sm mb-4 text-center">ราคา</p>
                 
-                {/* Display Price for Selected Unit */}
+                  {/* Display Price for Selected Unit */}
                 {selectedBarcodeUnit && allPrices?.success && allPrices.prices.length > 0 ? (
                   (() => {
                     const selectedPrice = allPrices.prices.find(p => p.unitCode === selectedBarcodeUnit);
                     if (selectedPrice) {
-                      const discountedPrice = selectedPrice.pricing.price - (selectedPrice.pricing.price * selectedPrice.discount / 100);
                       return (
                         <div className="space-y-3">
                           <div className="text-center">
                             <p className="text-sm font-medium text-gray-600 mb-2">หน่วย: <span className="font-bold text-purple-600">{selectedPrice.unitCode}</span></p>
-                            {selectedPrice.discount > 0 && (
-                              <p className="text-sm text-red-600 mb-2">
-                                ลด {selectedPrice.discount}% <span className="line-through text-gray-400">{formatCurrency(selectedPrice.pricing.price)}</span>
-                              </p>
-                            )}
-                            <p className="text-4xl font-bold text-purple-600">{formatCurrency(discountedPrice)}</p>
+                            <p className="text-4xl font-bold text-purple-600">{formatCurrency(selectedPrice.pricing.price)}</p>
                             <p className="text-xs text-gray-500 mt-2">Barcode: {selectedPrice.barcode}</p>
                           </div>
                         </div>
@@ -483,13 +474,8 @@ export default function HomePage() {
                           </span>
                         </div>
                         <div className="text-right pt-2 border-t">
-                          {priceByUnit.discount > 0 && (
-                            <p className="text-xs text-red-600 mb-1">
-                              ลด {priceByUnit.discount}%
-                            </p>
-                          )}
                           <p className="text-2xl font-bold text-green-600">
-                            {formatCurrency(priceByUnit.pricing.price - (priceByUnit.pricing.price * priceByUnit.discount / 100))}
+                            {formatCurrency(priceByUnit.pricing.price)}
                           </p>
                         </div>
                       </div>

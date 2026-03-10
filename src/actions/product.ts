@@ -420,31 +420,24 @@ export async function calculateAllPricesByUnits(
       if (!barcode.unit_code) continue;
 
       // ใช้ราคาจาก barcode โดยตรง (ไม่ query ใหม่)
-      // Fallback chain: price_2 → price → price1
-      let basePrice = 0;
+      // Fallback chain: price_2 → price → price_3 → price_4
+      let price = 0;
       
-      // เลือกราคา exclude VAT ก่อน
-      if (barcode.price > 0) {
-        basePrice = barcode.price;
-      } else if (barcode.price_2 > 0) {
-        basePrice = barcode.price_2 / 1.07;
+      // เลือกราคา - ลำดับลำดับ: price_2 → price → price_3 → price_4
+      if (barcode.price_2 > 0) {
+        price = barcode.price_2;
+      } else if (barcode.price > 0) {
+        price = barcode.price;
       } else if (barcode.price_3 > 0) {
-        basePrice = barcode.price_3 / 1.07;
+        price = barcode.price_3;
       } else if (barcode.price_4 > 0) {
-        basePrice = barcode.price_4 / 1.07;
-      }
-
-      // คำนวณให้เป็น include/exclude VAT ตามที่ต้องการ
-      let price = basePrice;
-      if (vatType !== 'ภาษีแยกนอก' && vatType !== 'Tax Excluded') {
-        // ถ้าต้อง include VAT
-        price = basePrice * 1.07;
+        price = barcode.price_4;
       }
 
       const pricing: PriceCalculationResult = {
-        success: basePrice > 0,
+        success: price > 0,
         price,
-        price1: basePrice,
+        price1: barcode.price,
         discountPercent: 0,
         priceType: '6',
         priceMode: '5',

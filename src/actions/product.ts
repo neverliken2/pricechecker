@@ -418,28 +418,59 @@ export async function calculateAllPricesByUnits(
 
     // หาราคาสำหรับแต่ละหน่วย
     for (const barcode of barcodes) {
-      if (!barcode.unitCode) continue;
+      if (!barcode.unit_code) continue;
 
-      const pricing = await calculateCustomerProductPrice(database, {
-        icCode,
-        unitCode: barcode.unitCode,
-        quantity: '1',
-        customerCode,
+      // ใช้ราคาจาก barcode โดยตรง (ไม่ query ใหม่)
+      // Fallback chain: price_2 → price → price1
+      let basePrice = 0;
+      
+      // เลือกราคา exclude VAT ก่อน
+      if (barcode.price > 0) {
+        basePrice = barcode.price;
+      } else if (barcode.price_2 > 0) {
+        basePrice = barcode.price_2 / 1.07;
+      } else if (barcode.price_3 > 0) {
+        basePrice = barcode.price_3 / 1.07;
+      } else if (barcode.price_4 > 0) {
+        basePrice = barcode.price_4 / 1.07;
+      }
+
+      // คำนวณให้เป็น include/exclude VAT ตามที่ต้องการ
+      let price = basePrice;
+      if (vatType !== 'ภาษีแยกนอก' && vatType !== 'Tax Excluded') {
+        // ถ้าต้อง include VAT
+        price = basePrice * 1.07;
+      }
+
+      const pricing: PriceCalculationResult = {
+        success: basePrice > 0,
+        price,
+        price1: basePrice,
+        discountPercent: 0,
+        priceType: '6',
+        priceMode: '5',
         vatType,
-        saleType: '0'
-      });
+        debug: { ruleMatched: 'Direct Barcode Price' }
+      };
 
-      const discount = await getCustomerDiscount(
-        database,
-        icCode,
-        barcode.unitCode,
-        customerCode,
-        1
-      );
+      // ลองดึง discount แต่ไม่ error ถ้าไม่เจอ
+      let discount = 0;
+      try {
+        discount = await getCustomerDiscount(
+          database,
+          icCode,
+          barcode.unit_code,
+          customerCode,
+          1
+        );
+      } catch (e) {
+        console.warn('Error getting discount:', e);
+        discount = 0;
+      }
 
       priceResults.push({
-        unitCode: barcode.unitCode,
-        unitName: barcode.unitCode, // หรือจะดึงจาก ic_inventory ได้
+        unitCode: barcode.unit_code,
+        unitName: barcode.unit_code,
         barcode: barcode.barcode,
         pricing,
         discount
